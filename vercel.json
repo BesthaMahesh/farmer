@@ -7,16 +7,12 @@
             "config": {
                 "distDir": "frontend/dist"
             }
-        },
-        {
-            "src": "backend/app.py",
-            "use": "@vercel/python"
         }
     ],
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "backend/app.py"
+            "destination": "https://farmer-0dzx.onrender.com/api/$1"
         },
         {
             "source": "/(.*)",
