@@ -58,7 +58,7 @@ IMG_SIZE = 64
 
 # OpenRouter Setup
 OPENAI_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 MODEL_ID = "openai/gpt-4o-mini"
 
 @app.route('/health', methods=['GET'])
@@ -119,7 +119,7 @@ def ask_ai():
         question = data.get('question', '')
         
         load_dotenv(override=True)
-        current_api_key = OPENAI_API_KEY
+        current_api_key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY)
         
         if not current_api_key:
             return jsonify({"answer": "OpenRouter API Key is missing."}), 200
