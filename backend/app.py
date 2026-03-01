@@ -21,7 +21,7 @@ CORS(app)
 # Load Models
 MODEL_PATH = 'models/crop_model.pkl'
 FEATURES_PATH = 'models/features.pkl'
-PLANT_MODEL_PATH = 'models/plant_disease_model.pkl' # The newly trained model
+PLANT_MODEL_PATH = 'models/plant_disease_nn_model.pkl' # The newly trained model
 
 model = None
 features = None
