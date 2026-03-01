@@ -27,9 +27,10 @@ PLANT_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'plant_disease_nn_model.pkl'
 model = None
 features = None
 plant_model = None
+plant_model_error = None
 
 def load_ml_components():
-    global model, features, plant_model
+    global model, features, plant_model, plant_model_error
     
     # Load Crop Recommendation Model
     if os.path.exists(MODEL_PATH):
@@ -46,10 +47,15 @@ def load_ml_components():
     if os.path.exists(PLANT_MODEL_PATH):
         try:
             plant_model = joblib.load(PLANT_MODEL_PATH)
+            plant_model_error = None
             print("✅ Plant Disease Neural Network loaded.")
         except Exception as e:
+            plant_model_error = str(e)
+            import traceback
+            plant_model_error += " | Traceback: " + traceback.format_exc()
             print(f"Error loading Plant Disease model: {e}")
     else:
+        plant_model_error = f"Model file not found at {PLANT_MODEL_PATH}"
         print("Plant Disease Model not found. Ensure it is moved to backend/models/")
 
 load_ml_components()
@@ -64,7 +70,12 @@ MODEL_ID = "openai/gpt-4o-mini"
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "healthy", "model_loaded": model is not None}), 200
+    return jsonify({
+        "status": "healthy",
+        "model_loaded": model is not None,
+        "plant_model_loaded": plant_model is not None,
+        "plant_model_error": plant_model_error
+    }), 200
 
 @app.route('/api/weather', methods=['GET'])
 def get_weather():
@@ -170,7 +181,7 @@ def ask_ai():
 @app.route('/api/detect-disease', methods=['POST'])
 def detect_disease():
     if not plant_model:
-        return jsonify({"error": "Plant Disease Model not loaded. Ensure it's in backend/models/"}), 503
+        return jsonify({"error": f"Model failed to load! Error: {plant_model_error}"}), 503
         
     if 'image' not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
