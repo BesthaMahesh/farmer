@@ -8,7 +8,9 @@ def get_weather_data(city):
     try:
         # Using wttr.in as requested by the user
         url = f"https://wttr.in/{city.lower()}?format=%C+%t"
-        response = requests.get(url, timeout=5)
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        response = requests.get(url, timeout=3, verify=False)
         
         if response.status_code == 200:
             result = response.text.strip()

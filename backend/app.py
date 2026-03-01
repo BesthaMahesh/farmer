@@ -1,101 +1,65 @@
 import os
 import joblib
 import pandas as pd
+import numpy as np
+import requests
+from PIL import Image
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from utils import get_weather_data, get_market_prices
-from openai import OpenAI
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
-from PIL import Image
 import io
 
 # Fix for WinError 1114 (DLL load failure) common on Windows/Anaconda
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+# No more PyTorch needed in the backend! This avoids DLL Load issues (WinError 1114).
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# Load Model
+# Load Models
 MODEL_PATH = 'models/crop_model.pkl'
 FEATURES_PATH = 'models/features.pkl'
-CNN_MODEL_PATH = 'models/cnn_model.pt'
+PLANT_MODEL_PATH = 'models/plant_disease_model.pkl' # The newly trained model
 
 model = None
 features = None
-cnn_model = None
-cnn_meta = None
-
-# Device for CNN
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+plant_model = None
 
 def load_ml_components():
-    global model, features, cnn_model, cnn_meta
+    global model, features, plant_model
     
     # Load Crop Recommendation Model
     if os.path.exists(MODEL_PATH):
-        model = joblib.load(MODEL_PATH)
-        features = joblib.load(FEATURES_PATH)
-    else:
-        print("ML Model (Crop) not found. Please run crop_training.ipynb first.")
-
-    # Load CNN Disease Detection Model
-    if os.path.exists(CNN_MODEL_PATH):
         try:
-            checkpoint = torch.load(CNN_MODEL_PATH, map_location=DEVICE, weights_only=False)
-            
-            # Reconstruct the specific architecture from training
-            # (MobileNetV2 + custom head)
-            from torchvision.models import MobileNet_V2_Weights
-            
-            # Using legacy fallback as in notebook refinement
-            try:
-                base_model = models.mobilenet_v2(weights=None)
-            except:
-                base_model = models.mobilenet_v2(pretrained=False)
-            
-            in_features = base_model.classifier[1].in_features
-            base_model.classifier = nn.Sequential(
-                nn.Dropout(p=0.4),
-                nn.Linear(in_features, 256),
-                nn.ReLU(),
-                nn.BatchNorm1d(256),
-                nn.Dropout(p=0.3),
-                nn.Linear(256, 4) # 4 classes
-            )
-            
-            # Load state dict
-            if 'model_state_dict' in checkpoint:
-                base_model.load_state_dict(checkpoint['model_state_dict'])
-                cnn_meta = {k: checkpoint[k] for k in checkpoint if k != 'model_state_dict'}
-            else:
-                base_model.load_state_dict(checkpoint) # Legacy full save
-                
-            cnn_model = base_model.to(DEVICE)
-            cnn_model.eval()
-            print("✅ CNN Disease Model loaded.")
+            model = joblib.load(MODEL_PATH)
+            features = joblib.load(FEATURES_PATH)
+            print("✅ Crop Recommendation Model loaded.")
         except Exception as e:
-            print(f"Error loading CNN model: {e}")
+            print(f"Error loading Crop model: {e}")
     else:
-        print("CNN Model not found. Please run cnn_training.ipynb first.")
+        print("ML Model (Crop) not found.")
+
+    # Load Plant Disease Model (Trained with Scikit-Learn)
+    if os.path.exists(PLANT_MODEL_PATH):
+        try:
+            plant_model = joblib.load(PLANT_MODEL_PATH)
+            print("✅ Plant Disease Neural Network loaded.")
+        except Exception as e:
+            print(f"Error loading Plant Disease model: {e}")
+    else:
+        print("Plant Disease Model not found. Ensure it is moved to backend/models/")
 
 load_ml_components()
 
-# Image Transforms
-val_transforms = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
+# Image size used during training
+IMG_SIZE = 64
 
-# OpenAI Client
-client = None
-if os.getenv("OPENAI_API_KEY"):
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# OpenRouter Setup
+OPENAI_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENAI_API_KEY = "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"
+MODEL_ID = "openai/gpt-4o-mini"
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -152,49 +116,79 @@ def recommend():
 def ask_ai():
     try:
         data = request.json
-        question = data.get('question')
+        question = data.get('question', '')
         
-        if not client:
-            return jsonify({"answer": "OpenAI API Key is missing. Please check your backend .env file."}), 200
+        load_dotenv(override=True)
+        current_api_key = OPENAI_API_KEY
+        
+        if not current_api_key:
+            return jsonify({"answer": "OpenRouter API Key is missing."}), 200
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful agricultural expert. Provide advice on crop management, pests, and diseases in simple language."},
-                {"role": "user", "content": question}
-            ]
-        )
+        headers = {
+            "Authorization": f"Bearer {current_api_key}",
+            "HTTP-Referer": "http://localhost:5173",
+            "X-Title": "Farmer AI",
+            "Content-Type": "application/json"
+        }
         
-        return jsonify({"answer": response.choices[0].message.content}), 200
+        payload = {
+            "model": MODEL_ID,
+            "messages": [
+                {"role": "system", "content": "You are a helpful agricultural expert advisor."},
+                {"role": "user", "content": question}
+            ],
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
+
+        response = requests.post(OPENAI_API_URL, headers=headers, json=payload, timeout=30)
+        
+        if response.status_code != 200:
+            print(f"OPENAI ERROR ({response.status_code}): {response.text}")
+            try:
+                err_content = response.json()
+                msg = err_content.get("error", {}).get("message", response.text)
+            except:
+                msg = response.text
+            return jsonify({"answer": f"AI Service Error: {msg[:200]}"}), 200
+
+        output = response.json()
+        print(f"OPENAI DEBUG: {output}")
+
+        if "choices" in output and len(output["choices"]) > 0:
+            answer = output["choices"][0]["message"]["content"].strip()
+        else:
+            answer = "Sorry, I couldn't get a valid response from the AI."
+
+        return jsonify({"answer": answer}), 200
         
     except Exception as e:
+        print(f"AI Advisor Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/detect-disease', methods=['POST'])
 def detect_disease():
-    if not cnn_model:
-        return jsonify({"error": "CNN Model not initialized. Train it first!"}), 503
+    if not plant_model:
+        return jsonify({"error": "Plant Disease Model not loaded. Ensure it's in backend/models/"}), 503
         
     if 'image' not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
         
     try:
         file = request.files['image']
-        img = Image.open(file.stream).convert('RGB')
+        img = Image.open(file.stream).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
+        
+        # Flatten image to match training format (64*64*3)
+        features_flat = np.array(img).flatten() / 255.0
+        features_flat = features_flat.reshape(1, -1)
         
         # Inference
-        img_t = val_transforms(img).unsqueeze(0).to(DEVICE)
+        disease = plant_model.predict(features_flat)[0]
+        probs = plant_model.predict_proba(features_flat)[0]
         
-        with torch.no_grad():
-            outputs = cnn_model(img_t)
-            probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
-            
-        pred_idx = probs.argmax()
+        class_names = plant_model.classes_
+        pred_idx = list(class_names).index(disease)
         confidence = float(probs[pred_idx])
-        
-        # Meta info
-        class_names = cnn_meta.get('class_names', ['healthy', 'multiple_diseases', 'rust', 'scab']) if cnn_meta else ['healthy', 'multiple_diseases', 'rust', 'scab']
-        disease = class_names[pred_idx]
         
         return jsonify({
             "disease": disease,
@@ -226,5 +220,7 @@ def market_trends():
         
     return jsonify(data), 200
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))

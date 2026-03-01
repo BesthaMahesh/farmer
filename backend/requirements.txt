@@ -1,9 +1,12 @@
 flask
 flask-cors
-openai
 requests
 pandas
+numpy<2.0.0
+scipy
 scikit-learn
 joblib
 python-dotenv
 gunicorn
+Pillow
+tqdm

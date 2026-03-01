@@ -7,9 +7,11 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0c0a09;
+  color-scheme: light;
+  color: #0f172a;
+  /* slate-900 */
+  background-color: #f8fafc;
+  /* slate-50 */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -31,6 +33,35 @@ body {
 
 @layer base {
   body {
-    @apply bg-stone-950 text-stone-200;
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+@media print {
+  @page {
+    margin: 1cm;
+    size: auto;
+  }
+
+  body,
+  app,
+  main {
+    background-color: white !important;
+    overflow: visible !important;
+  }
+
+  .print-container {
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
