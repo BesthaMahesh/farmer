@@ -19,9 +19,10 @@ app = Flask(__name__)
 CORS(app)
 
 # Load Models
-MODEL_PATH = 'models/crop_model.pkl'
-FEATURES_PATH = 'models/features.pkl'
-PLANT_MODEL_PATH = 'models/plant_disease_nn_model.pkl' # The newly trained model
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_model.pkl')
+FEATURES_PATH = os.path.join(BASE_DIR, 'models', 'features.pkl')
+PLANT_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'plant_disease_nn_model.pkl') # The newly trained model
 
 model = None
 features = None

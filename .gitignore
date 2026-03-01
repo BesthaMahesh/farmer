@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .env
 dataset/
-models/
+# Do not ignore backend models for Render deployment
+!backend/models/
+*.pkl
+!backend/models/*.pkl
 .VSCode/
 .idea/
