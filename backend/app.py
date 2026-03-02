@@ -243,7 +243,11 @@ def detect_disease():
                 file.seek(0)
         # --- END AI check ---
 
-        img = Image.open(file.stream).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
+        # Crucial: Reset file pointer to beginning after reading for AI check
+        file.seek(0)
+        
+        # Load image, ensure it is RGB, resize to match training
+        img = Image.open(io.BytesIO(file.read())).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
         
         # Flatten image to match training format (64*64*3)
         features_flat = np.array(img).flatten() / 255.0
