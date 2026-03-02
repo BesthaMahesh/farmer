@@ -188,6 +188,61 @@ def detect_disease():
         
     try:
         file = request.files['image']
+        
+        # --- AI check for plant content ---
+        import base64
+        current_api_key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY)
+        
+        if current_api_key:
+            try:
+                img_bytes = file.read()
+                file.seek(0)
+                
+                b64_img = base64.b64encode(img_bytes).decode('utf-8')
+                
+                payload = {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text", 
+                                    "text": "Is this an image of a plant, crop, leaf, or agriculture-related item? Reply with 'YES' or 'NO' only."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{b64_img}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 10,
+                    "temperature": 0.0
+                }
+                
+                headers = {
+                    "Authorization": f"Bearer {current_api_key}",
+                    "HTTP-Referer": "http://localhost:5173",
+                    "X-Title": "Farmer AI",
+                    "Content-Type": "application/json"
+                }
+                
+                response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if "choices" in data and len(data["choices"]) > 0:
+                        answer = data["choices"][0]["message"]["content"].strip().upper()
+                        if "NO" in answer:
+                            return jsonify({"error": "**Not a Plant Detected**\n\nThe image uploaded does not appear to be a plant, crop, or leaf. Please upload a clear photo of a plant to get a disease analysis."}), 400
+            except Exception as e:
+                print(f"Vision API Warning: {e}")
+                file.seek(0)
+        # --- END AI check ---
+
         img = Image.open(file.stream).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
         
         # Flatten image to match training format (64*64*3)

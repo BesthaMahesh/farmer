@@ -186,6 +186,17 @@ const Advisory = ({ setLastDetection }) => {
         }
     }
 
+    const formatMarkdown = (text) => {
+        if (!text) return null;
+        const parts = text.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
+            }
+            return <span key={i}>{part}</span>;
+        });
+    };
+
     return (
         <div className="max-w-5xl mx-auto h-[82vh] flex flex-col bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-500">
 
@@ -287,15 +298,15 @@ const Advisory = ({ setLastDetection }) => {
                                 {/* Standard Message Rendering */}
                                 {!msg.isAlert && !msg.isDiseaseDetection && (
                                     <div className={`p-4 rounded-2xl ${msg.role === 'user'
-                                            ? 'bg-slate-800 text-white rounded-tr-none shadow-md'
-                                            : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none shadow-sm'
+                                        ? 'bg-slate-800 text-white rounded-tr-none shadow-md'
+                                        : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none shadow-sm'
                                         }`}>
                                         {msg.image && (
                                             <img src={msg.image} alt="Uploaded" className="max-w-xs rounded-xl mb-3 border border-slate-100 shadow-sm" />
                                         )}
-                                        <p className="leading-relaxed whitespace-pre-wrap text-[15px]">
-                                            {msg.content}
-                                        </p>
+                                        <div className="leading-relaxed whitespace-pre-wrap text-[15px]">
+                                            {formatMarkdown(msg.content)}
+                                        </div>
                                     </div>
                                 )}
 
