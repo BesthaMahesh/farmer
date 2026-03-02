@@ -189,15 +189,15 @@ def detect_disease():
     try:
         file = request.files['image']
         
+        # --- CRITICAL FIX: Read bytes once into memory ---
+        img_bytes = file.read()
+        
         # --- AI check for plant content ---
         import base64
         current_api_key = os.getenv("OPENAI_API_KEY", OPENAI_API_KEY)
         
         if current_api_key:
             try:
-                img_bytes = file.read()
-                file.seek(0)
-                
                 b64_img = base64.b64encode(img_bytes).decode('utf-8')
                 
                 payload = {
@@ -240,14 +240,10 @@ def detect_disease():
                             return jsonify({"error": "**Not a Plant Detected**\n\nThe image uploaded does not appear to be a plant, crop, or leaf. Please upload a clear photo of a plant to get a disease analysis."}), 400
             except Exception as e:
                 print(f"Vision API Warning: {e}")
-                file.seek(0)
         # --- END AI check ---
-
-        # Crucial: Reset file pointer to beginning after reading for AI check
-        file.seek(0)
         
-        # Load image, ensure it is RGB, resize to match training
-        img = Image.open(io.BytesIO(file.read())).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
+        # Load image safely from the byte buffer, ensure RGB, resize
+        img = Image.open(io.BytesIO(img_bytes)).convert('RGB').resize((IMG_SIZE, IMG_SIZE))
         
         # Flatten image to match training format (64*64*3)
         features_flat = np.array(img).flatten() / 255.0
