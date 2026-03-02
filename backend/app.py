@@ -22,7 +22,7 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'crop_model.pkl')
 FEATURES_PATH = os.path.join(BASE_DIR, 'models', 'features.pkl')
-PLANT_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'plant_disease_nn_model.pkl') # The newly trained model
+PLANT_MODEL_PATH = os.path.join(BASE_DIR, 'models', 'plant_disease_model.pkl') # Use the Random Forest (50% acc) instead of MLP (32% acc)
 
 model = None
 features = None
